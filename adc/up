@@ -33,503 +33,503 @@ error () {
 }
 
 warn () {
-	echo "\033[41m\033[1;33mWARNING: $@\033[0m" >&2
+  echo "\033[41m\033[1;33mWARNING: $@\033[0m" >&2
 }
 
 info () {
-	echo "\033[44m\033[1;36m$@\033[0m" >&2
+  echo "\033[44m\033[1;36m$@\033[0m" >&2
 }
 
 msg () {
-	echo "\033[40m\033[1;36m$@\033[0m" >&2
+  echo "\033[40m\033[1;36m$@\033[0m" >&2
 }
 
-msgy () { 
+msgy () {
     echo "\033[40m\033[1;33m$@\033[0m" >&2
 }
 
 debug() {
-	if [ $debug -gt 0 ]
-	then
-		echo "# DEBUG: [$( date -R )] <<< $@" >&2
-	fi
+  if [ $debug -gt 0 ]
+  then
+    echo "# DEBUG: [$( date -R )] <<< $@" >&2
+  fi
 }
 
 is_gitolite() {
-	if [ -n "$GL_USER" ]
-	then
-		return 0
-	fi
-	return 1
+  if [ -n "$GL_USER" ]
+  then
+    return 0
+  fi
+  return 1
 }
 
 is_gitlab() {
-	getent passwd | grep -q gitlab
-	return $?
+  getent passwd | grep -q gitlab
+  return $?
 }
 
 
 get_conf() {
-	# do not reparse every time
-	if [ $config_loaded -eq 0 ]
-	then
-		config_loaded=1
-		local n=0
-		# Example: fetch or update config files
-		hook pre_conf
+  # do not reparse every time
+  if [ $config_loaded -eq 0 ]
+  then
+    config_loaded=1
+    local n=0
+    # Example: fetch or update config files
+    hook pre_conf
 
-		if [ ! -d "$orgconfdir" ]
-		then
-			warn "You should add your organization and projects specific config files in $orgconfdir."
-		else
-			debug "Update internal git-up config repository ($orgconfdir)"
-			# can't use --work-tree parameter as we are in a git repository ... 
-			# so I use a subshell
-			( unset GIT_DIR; cd $orgconfdir && git pull $( test $debug -eq 0 && echo -q ) --ff-only origin master )  >&2
-		fi
+    if [ ! -d "$orgconfdir" ]
+    then
+      warn "You should add your organization and projects specific config files in $orgconfdir."
+    else
+      debug "Update internal git-up config repository ($orgconfdir)"
+      # can't use --work-tree parameter as we are in a git repository ...
+      # so I use a subshell
+      ( unset GIT_DIR; cd $orgconfdir && git pull $( test $debug -eq 0 && echo -q ) --ff-only origin master )  >&2
+    fi
 
-		for confdir in $defaultconfdir $orgconfdir
-		do
-			for conffile in defaults.cfg organization.cfg ${repo}.default.cfg ${repo}.cfg 
-			do
-				local cnf=$confdir/$conffile
-				if [ -e $cnf ]
-				then
-					local cnf_secured=
-					debug "Parse #$n $cnf"
-					if grep -Ev '^#|^$|^[^ ]*=[^;]*' "$cnf" >&2
-					then
-						cnf_secured="/tmp/$( basename $cnf ).secured"
-						warn "Config file '$cnf' is unclead, cleaning it ..."
-						grep -E '^#|^[^ ]*=[^;&]*'  "$cnf" >$cnf_secured
-						cnf="$cnf_secured"
-					fi
+    for confdir in $defaultconfdir $orgconfdir
+    do
+      for conffile in defaults.cfg organization.cfg ${repo}.default.cfg ${repo}.cfg
+      do
+        local cnf=$confdir/$conffile
+        if [ -e $cnf ]
+        then
+          local cnf_secured=
+          debug "Parse #$n $cnf"
+          if grep -Ev '^#|^$|^[^ ]*=[^;]*' "$cnf" >&2
+          then
+            cnf_secured="/tmp/$( basename $cnf ).secured"
+            warn "Config file '$cnf' is unclead, cleaning it ..."
+            grep -E '^#|^[^ ]*=[^;&]*'  "$cnf" >$cnf_secured
+            cnf="$cnf_secured"
+          fi
 
-					source "$cnf"
-					n=$(( $n + 1 ))
+          source "$cnf"
+          n=$(( $n + 1 ))
 
-					if [ -n "$cnf_secured" ]
-					then
-						debug "Removing temporary secured cnf: $cnf_secured"
-					fi
-				fi
-			done
-		done
+          if [ -n "$cnf_secured" ]
+          then
+            debug "Removing temporary secured cnf: $cnf_secured"
+          fi
+        fi
+      done
+    done
 
-		hook post_conf
-	fi
+    hook post_conf
+  fi
 }
 
 # Hook from this repository, or config repo
 hook() {
-	if [ -n "$1" ]
-	then
-		local hookname="$1"
-		shift
-		local hookfile=
-		# Can't get conf on pre_conf hook
-		if [ "$hookname" = "pre_conf" ]
-		then
-			hookfile="../hooks/pre_conf"
-		# any other hooks:
-		else
-			get_conf
-			hookfile="${!hookname}"
-		fi
-		debug "hook '$hookname' ?"
-		if [ -n "$hookfile" ]
-		then
-			for hookscript in "$hookfile" "$orgconfdir/$hookfile"
-			do
-				if [ -x "$hookscript" ]
-				then
-					debug "Call hook: $hookscript"
-					$hookscript $stage $repo $gitdir $@ || exit $?
-				else
-					debug "hook $hookname => '$hookscript' : script not found."
-				fi
-			done
-		fi
-	fi
+  if [ -n "$1" ]
+  then
+    local hookname="$1"
+    shift
+    local hookfile=
+    # Can't get conf on pre_conf hook
+    if [ "$hookname" = "pre_conf" ]
+    then
+      hookfile="../hooks/pre_conf"
+    # any other hooks:
+    else
+      get_conf
+      hookfile="${!hookname}"
+    fi
+    debug "hook '$hookname' ?"
+    if [ -n "$hookfile" ]
+    then
+      for hookscript in "$hookfile" "$orgconfdir/$hookfile"
+      do
+        if [ -x "$hookscript" ]
+        then
+          debug "Call hook: $hookscript"
+          $hookscript $stage $repo $gitdir $@ || exit $?
+        else
+          debug "hook $hookname => '$hookscript' : script not found."
+        fi
+      done
+    fi
+  fi
 }
 
 # Local to the deployed repository
 local_hook() {
-	local hook="$1"
-	shift
-	if [ -n "$hook" ]
-	then
-		if [ -d "$gitdir" ]
-		then
-			if [ -x "$gitdir/$local_hooks_dir/$hook" ]
-			then
-				debug "Call hook: $hook"
-				# Call it inside a subshell
-				( cd "$gitdir" && $local_hooks_dir/$hook $stage $repo $@ )
-			else
-				debug "hook $1 => '$local_hooks_dir/$hook' : script not found."
-			fi
-		else
-			warn "No gitdir ? WTF ?? [$gitdir]"
-		fi
-	fi
+  local hook="$1"
+  shift
+  if [ -n "$hook" ]
+  then
+    if [ -d "$gitdir" ]
+    then
+      if [ -x "$gitdir/$local_hooks_dir/$hook" ]
+      then
+        debug "Call hook: $hook"
+        # Call it inside a subshell
+        ( cd "$gitdir" && $local_hooks_dir/$hook $stage $repo $@ )
+      else
+        debug "hook $1 => '$local_hooks_dir/$hook' : script not found."
+      fi
+    else
+      warn "No gitdir ? WTF ?? [$gitdir]"
+    fi
+  fi
 }
 
 do_update() {
-	get_conf
-	debug "do auto-update: $do_auto_update_each"
-	if [ -n "$do_auto_update_each" ] && [ $do_auto_update_each -gt 0 ]
-	then
-		# TODO: flag + check last update
-		cd ..
-		debug "self-update"
-		hook pre_self_update
-		git pull
-		if is_gitolite
-		then
-			if diff -q hooks/post-receive $postreceivehook
-			then
-				echo "Updating gitolite post-receive hook."
-			#	cp -a hooks/post-receive $postreceivehook
-			fi
-		elif is_gitlab
-		then
-			warn "GITLAB is not yet supported."
-		fi
-		debug "self-update done."
-		hook post_self_update
-	else
-		error "auto-update is disabled"
-	fi
-	exit 0
+  get_conf
+  debug "do auto-update: $do_auto_update_each"
+  if [ -n "$do_auto_update_each" ] && [ $do_auto_update_each -gt 0 ]
+  then
+    # TODO: flag + check last update
+    cd ..
+    debug "self-update"
+    hook pre_self_update
+    git pull
+    if is_gitolite
+    then
+      if diff -q hooks/post-receive $postreceivehook
+      then
+        echo "Updating gitolite post-receive hook."
+      #	cp -a hooks/post-receive $postreceivehook
+      fi
+    elif is_gitlab
+    then
+      warn "GITLAB is not yet supported."
+    fi
+    debug "self-update done."
+    hook post_self_update
+  else
+    error "auto-update is disabled"
+  fi
+  exit 0
 }
 
 setup_provision() {
-	get_conf
-	if is_gitolite
-	then
-		repositories="$GL_REPO_BASE_ABS"
-		provisiondir="$GL_REPO_BASE_ABS/../provisioning/$stage"
-	elif is_gitlab
-	then
-		error "GITLAB is not yet supported."
-	else
-		provisiondir="../../provisioning/$stage"
-	fi
-	gitdir="$provisiondir/$repo"
+  get_conf
+  if is_gitolite
+  then
+    repositories="$GL_REPO_BASE_ABS"
+    provisiondir="$GL_REPO_BASE_ABS/../provisioning/$stage"
+  elif is_gitlab
+  then
+    error "GITLAB is not yet supported."
+  else
+    provisiondir="../../provisioning/$stage"
+  fi
+  gitdir="$provisiondir/$repo"
 
-	check_repo
+  check_repo
 
-	if [ ! -d "$provisiondir" ]
-	then
-		debug "mkdir $PWD/$provisiondir"
-		mkdir -p "$provisiondir"
-	fi
+  if [ ! -d "$provisiondir" ]
+  then
+    debug "mkdir $PWD/$provisiondir"
+    mkdir -p "$provisiondir"
+  fi
 
-	local cloned=0
-	if [ ! -d "$provisiondir/$repo" ]
-	then
-		msgy "Clone $repo, please wait ..."
-		if [ -d "$repositories/${repo}.git/" ]
-		then
-			remote="$repositories/${repo}.git/"
-		fi
+  local cloned=0
+  if [ ! -d "$provisiondir/$repo" ]
+  then
+    msgy "Clone $repo, please wait ..."
+    if [ -d "$repositories/${repo}.git/" ]
+    then
+      remote="$repositories/${repo}.git/"
+    fi
 
-		if ! git clone -l -q $remote $provisiondir/$repo >&2
-		then
-			echo "# FATAL: unable to clone $repo."
-			exit 5
-		fi
-		cloned=1
-	fi
+    if ! git clone -l -q $remote $provisiondir/$repo >&2
+    then
+      echo "# FATAL: unable to clone $repo."
+      exit 5
+    fi
+    cloned=1
+  fi
 
-	export GIT_WORK_TREE="$gitdir"
-	export GIT_DIR="$gitdir/.git"
-	debug "work-tree=$GIT_WORK_TREE"
+  export GIT_WORK_TREE="$gitdir"
+  export GIT_DIR="$gitdir/.git"
+  debug "work-tree=$GIT_WORK_TREE"
 
-	# init on commitish if cloned
-	if [ $cloned -gt 0 ]
-	then
-		msg "Initialize to $commitish"
-		git checkout $( test $debug -eq 0 && echo -q ) -f $commitish
-	fi
+  # init on commitish if cloned
+  if [ $cloned -gt 0 ]
+  then
+    msg "Initialize to $commitish"
+    git checkout $( test $debug -eq 0 && echo -q ) -f $commitish
+  fi
 }
 
 provision() {
-	debug "git fetch"
-	git fetch --tags $( test $debug -eq 0 && echo -q ) origin
-	git fetch $( test $debug -eq 0 && echo -q ) origin
-	debug "git fetch done."
+  debug "git fetch"
+  git fetch --tags $( test $debug -eq 0 && echo -q ) origin
+  git fetch $( test $debug -eq 0 && echo -q ) origin
+  debug "git fetch done."
 }
 
 get_current_state() {
-	chead="$( git rev-parse HEAD )"
-	set +e
-	# On which branch am I ?
-	cbranch=$( git branch -r --contains $chead | head -1 | sed "s/^[[:space:]]\+//" | awk '{print $3}' | cut -d/ -f2 )
-	if [ -z "$cbranch" ]
-	then
-		cbranch=$( git branch -r --contains $chead | head -1 | sed "s/^[[:space:]]\+//" | awk '{print $1}' | cut -d/ -f2 )
-	fi
-	debug "cbranch=$cbranch"
-	if [ -n "$cbranch" ]
-	then
-		cpretty="$cbranch"
-	else
-		cpretty="$chead"
-	fi
-	ctag="$( git describe --tags --exact-match $chead 2>/dev/null )"
-	if [ -n "$ctag" ]
-	then
-		cpretty="$ctag"
-	fi
-	debug "cpretty=$cpretty chead=$chead ctag='$ctag'"
-	set -e
+  chead="$( git rev-parse HEAD )"
+  set +e
+  # On which branch am I ?
+  cbranch=$( git branch -r --contains $chead | head -1 | sed "s/^[[:space:]]\+//" | awk '{print $3}' | cut -d/ -f2 )
+  if [ -z "$cbranch" ]
+  then
+    cbranch=$( git branch -r --contains $chead | head -1 | sed "s/^[[:space:]]\+//" | awk '{print $1}' | cut -d/ -f2 )
+  fi
+  debug "cbranch=$cbranch"
+  if [ -n "$cbranch" ]
+  then
+    cpretty="$cbranch"
+  else
+    cpretty="$chead"
+  fi
+  ctag="$( git describe --tags --exact-match $chead 2>/dev/null )"
+  if [ -n "$ctag" ]
+  then
+    cpretty="$ctag"
+  fi
+  debug "cpretty=$cpretty chead=$chead ctag='$ctag'"
+  set -e
 }
 
 
 do_guess() {
-	local branch=$1
-	local tag=$2
-	get_conf
+  local branch=$1
+  local tag=$2
+  get_conf
 
-	local stage=
+  local stage=
 
-	# From post-receive hook, $branch can be empty if there is only a tag
-	if [ -z "$tag" ]
-	then
-		tag="$branch"
-	fi
+  # From post-receive hook, $branch can be empty if there is only a tag
+  if [ -z "$tag" ]
+  then
+    tag="$branch"
+  fi
 
-	debug "Guess with tag=$tag and branch=$branch"
+  debug "Guess with tag=$tag and branch=$branch"
 
-	# First, we guess on tags
-	if [ -n "$tag" ]
-	then
-		if [ $tag_enabled -gt 0 ]
-		then
-			debug "pattern: $tag_pattern"
-			if grep -Eq "$tag_pattern" <<< "$tag"
-			then
-				stage=$tag_stage
-			fi
-		fi
-	fi
+  # First, we guess on tags
+  if [ -n "$tag" ]
+  then
+    if [ $tag_enabled -gt 0 ]
+    then
+      debug "pattern: $tag_pattern"
+      if grep -Eq "$tag_pattern" <<< "$tag"
+      then
+        stage=$tag_stage
+      fi
+    fi
+  fi
 
-	# if not found, guess on branch
-	if [ -z "$stage" ] && [ -n "$branch_name" ] && [ "$branch" = "$branch_name" ] && [ -n "$branch_to_stage" ]
-	then
-		stage=$branch_to_stage
-	fi
+  # if not found, guess on branch
+  if [ -z "$stage" ] && [ -n "$branch_name" ] && [ "$branch" = "$branch_name" ] && [ -n "$branch_to_stage" ]
+  then
+    stage=$branch_to_stage
+  fi
 
-	debug "found stage=$stage"
+  debug "found stage=$stage"
 
-	# Found, now check that this stage is allowed
-	if [ -n "$stage" ]
-	then
-		if is_stage_allowed $stage
-		then
-			echo "stage='$stage'"
-			exit 0
-		fi
-	fi
-	exit 17
+  # Found, now check that this stage is allowed
+  if [ -n "$stage" ]
+  then
+    if is_stage_allowed $stage
+    then
+      echo "stage='$stage'"
+      exit 0
+    fi
+  fi
+  exit 17
 }
 
 
 
 do_infos() {
-	setup_provision
-	provision
-	get_current_state
+  setup_provision
+  provision
+  get_current_state
 
-	if [ $tag_enabled -gt 0 ] && [ -n "$tag_stage" ] && [ "$tag_stage" = "$stage" ]
-	then
-		debug "Stage <$stage> is configured on tags."
-		echo "tag=1"
-		echo "tag_pattern='$tag_pattern'"
-	else
-		echo "tag=0"
-	fi
-	echo "branch_name='$branch_name'"
-	echo "branch_stage='$branch_stage'"
-	local color="color_$stage"
-	echo -E "color='${!color}'"
+  if [ $tag_enabled -gt 0 ] && [ -n "$tag_stage" ] && [ "$tag_stage" = "$stage" ]
+  then
+    debug "Stage <$stage> is configured on tags."
+    echo "tag=1"
+    echo "tag_pattern='$tag_pattern'"
+  else
+    echo "tag=0"
+  fi
+  echo "branch_name='$branch_name'"
+  echo "branch_stage='$branch_stage'"
+  local color="color_$stage"
+  echo -E "color='${!color}'"
 
-	echo "chead='$chead'"
-	echo "ctag='$ctag'"
-	echo "cpretty='$cpretty'"
-	exit 0
+  echo "chead='$chead'"
+  echo "ctag='$ctag'"
+  echo "cpretty='$cpretty'"
+  exit 0
 }
 
 check_repo() {
-	if [ -z "$repo" ]
-	then
-		error "repository not found."
-		exit 6
-	fi
-	if [ -z "$stage" ]
-	then
-		error "stage not found."
-		exit 7
-	fi
+  if [ -z "$repo" ]
+  then
+    error "repository not found."
+    exit 6
+  fi
+  if [ -z "$stage" ]
+  then
+    error "stage not found."
+    exit 7
+  fi
 
-	get_conf
+  get_conf
 
-	if is_repo_allowed $repo
-	then
-		if is_stage_allowed $stage
-		then
-			return 0
-		else
-			error "Stage <$stage> is not allowed."
-		fi
+  if is_repo_allowed $repo
+  then
+    if is_stage_allowed $stage
+    then
+      return 0
+    else
+      error "Stage <$stage> is not allowed."
+    fi
 
-		if [ -d "$gitdir" ]
-		then
-			warn "git dir '$gitdir' exists, removing it."
-			rm -rf "$gitdir"
-		fi
-	else
-		error "Repository <$repo> is not allowed."
-	fi
-	exit 8
+    if [ -d "$gitdir" ]
+    then
+      warn "git dir '$gitdir' exists, removing it."
+      rm -rf "$gitdir"
+    fi
+  else
+    error "Repository <$repo> is not allowed."
+  fi
+  exit 8
 }
 
 
 is_stage_allowed() {
-	local stage_to_check=$1
-	local allowed_stage=
-	for allowed_stage in ${allowed_stages[*]}
-	do
-		if [ "$stage_to_check" = "$allowed_stage" ]
-		then
-			return 0
-		fi
-	done
-	return 1
+  local stage_to_check=$1
+  local allowed_stage=
+  for allowed_stage in ${allowed_stages[*]}
+  do
+    if [ "$stage_to_check" = "$allowed_stage" ]
+    then
+      return 0
+    fi
+  done
+  return 1
 }
 
 is_repo_allowed() {
-	local repo_to_check=$1
-	local disabled_repo=
-	for disabled_repo in ${repositories_disabled[@]}
-	do
-		if [ "$disabled_repo" = "$repo_to_check" ]
-		then
-			return 1
-		fi
-	done
-	return 0
+  local repo_to_check=$1
+  local disabled_repo=
+  for disabled_repo in ${repositories_disabled[@]}
+  do
+    if [ "$disabled_repo" = "$repo_to_check" ]
+    then
+      return 1
+    fi
+  done
+  return 0
 }
 
 # Can't use cfg_parser, it's not a real INI file ...
 parse_ansible_hostfile() {
-	local lansible=$ansible
-	local hostfile="$1"
-	if [ -z "$lansible" ]
-	then
-		lansible="ansible" # took from $PATH
-	else
-		# quick hack...
-		if [ -z "$PYTHONPATH" ]
-		then
-			export PYTHONPATH="$( dirname $lansible )/../lib"
-			debug "PYTHONPATH=$PYTHONPATH"
-		fi
-	fi
-	debug "Call ansible: $lansible"
-	local hosts=$( $lansible --inventory "$hostfile" --list-hosts $repo | awk '{print $1}' )
-	
-	debug "Hosts found: $hosts"
-	# master is first if not already setup
-	for h in "$hosts"
-	do
-		if [ -z "$master" ]
-		then
-			master="$h"
-		elif [ -z "$servers" ]
-		then
-			servers="$h"
-		else
-			servers="$servers,$h"
-		fi
-	done
+  local lansible=$ansible
+  local hostfile="$1"
+  if [ -z "$lansible" ]
+  then
+    lansible="ansible" # took from $PATH
+  else
+    # quick hack...
+    if [ -z "$PYTHONPATH" ]
+    then
+      export PYTHONPATH="$( dirname $lansible )/../lib"
+      debug "PYTHONPATH=$PYTHONPATH"
+    fi
+  fi
+  debug "Call ansible: $lansible"
+  local hosts=$( $lansible --inventory "$hostfile" --list-hosts $repo | awk '{print $1}' )
+
+  debug "Hosts found: $hosts"
+  # master is first if not already setup
+  for h in "$hosts"
+  do
+    if [ -z "$master" ]
+    then
+      master="$h"
+    elif [ -z "$servers" ]
+    then
+      servers="$h"
+    else
+      servers="$servers,$h"
+    fi
+  done
 }
 
 
 set_lockfile() {
-	lockfile="/tmp/git_up_deploy.lock"
+  lockfile="/tmp/git_up_deploy.lock"
 }
 
 
 check_lockfile() {
-	[ -e $lockfile ]
+  [ -e $lockfile ]
 }
 
 
 wait_for_lock() {
-	debug "check lock"
-	set_lockfile
+  debug "check lock"
+  set_lockfile
 
-	trap cleanup INT QUIT TERM EXIT
+  trap cleanup INT QUIT TERM EXIT
 
-	# LOCK
-	while check_lockfile
-	do
-		cat $lockfile
-		local lastm=$( stat -c %Y $lockfile )
-		local now=$( date +%s )
-		local td=$(( $now - $lastm ))
-		if [ $td -gt 120 ]
-		then
-			warn "Lock file too old (2min), removing it..."
-			rm -f $lockfile
-		fi
-		sleep 1
-	done
+  # LOCK
+  while check_lockfile
+  do
+    cat $lockfile
+    local lastm=$( stat -c %Y $lockfile )
+    local now=$( date +%s )
+    local td=$(( $now - $lastm ))
+    if [ $td -gt 120 ]
+    then
+      warn "Lock file too old (2min), removing it..."
+      rm -f $lockfile
+    fi
+    sleep 1
+  done
 }
 
 
 get_user() {
-	if is_gitolite
-	then
-		echo $GL_USER
-	elif is_gitlab
-	then
-		echo "GITLAB_USER"
-	else
-		echo "unknown"
-	fi
+  if is_gitolite
+  then
+    echo $GL_USER
+  elif is_gitlab
+  then
+    echo "GITLAB_USER"
+  else
+    echo "unknown"
+  fi
 }
 
 is_super_user() {
-	local me=$( get_user )
-	local u=
-	get_conf
-	for u in ${superusers[@]}
-	do
-		if [ "$u" = "$me" ]
-		then
-			debug "$u is a super user."
-			return 0
-		fi
-	done
-	return 1
+  local me=$( get_user )
+  local u=
+  get_conf
+  for u in ${superusers[@]}
+  do
+    if [ "$u" = "$me" ]
+    then
+      debug "$u is a super user."
+      return 0
+    fi
+  done
+  return 1
 }
 
 create_lock() {
-	set_lockfile
-	echo "\033[43m\033[1;31m$( get_user ) is deploying '$repo' on $stage with $commitish, please wait ...\033[0m" > $lockfile
+  set_lockfile
+  echo "\033[43m\033[1;31m$( get_user ) is deploying '$repo' on $stage with $commitish, please wait ...\033[0m" > $lockfile
 }
 
 
 cleanup () {
-	local file=
-	for file in $lockfile $difffile
-	do
-		test -e $file && rm -f $file
-	done
+  local file=
+  for file in $lockfile $difffile
+  do
+    test -e $file && rm -f $file
+  done
 }
 
 # The below is an alternative to readlink -fn which doesn't exist on OS X
@@ -538,135 +538,135 @@ cleanup () {
 
 
 get_stage_var() {
-	local var="$1"
-	local varname="$var"
-	local val=${!varname}
+  local var="$1"
+  local varname="$var"
+  local val=${!varname}
 
-	# Override with stage_ vars
-	varname="${stage}_$var"
-	local stageval=${!varname}
-	if [ -z ${stageval-x} ] 2>/dev/null # check that $stageval is set
-	then
-		debug "$varname is not set"
-	else
-		val=$stageval
-	fi
+  # Override with stage_ vars
+  varname="${stage}_$var"
+  local stageval=${!varname}
+  if [ -z ${stageval-x} ] 2>/dev/null # check that $stageval is set
+  then
+    debug "$varname is not set"
+  else
+    val=$stageval
+  fi
 
-	echo $val
+  echo $val
 }
 
 do_sync() {
-	setup_provision
-	wait_for_lock
-	create_lock
+  setup_provision
+  wait_for_lock
+  create_lock
 
-	debug "Prepare to deploy ..."
+  debug "Prepare to deploy ..."
 
-	if [ ! -d "$gitdir" ]
-	then
-		error "WTF ? gitdir not found [$gitdir]"
-		exit 14
-	fi
+  if [ ! -d "$gitdir" ]
+  then
+    error "WTF ? gitdir not found [$gitdir]"
+    exit 14
+  fi
 
-	# Get deployment vars
-	local inventory=$( get_stage_var inventory )
-	local rsync_module=$( get_stage_var rsync_module )
-	local user=$( get_stage_var user )
-	local master=$( get_stage_var master )
-	local servers=$( get_stage_var servers )
-	local mutualized=$( get_stage_var mutualized )
+  # Get deployment vars
+  local inventory=$( get_stage_var inventory )
+  local rsync_module=$( get_stage_var rsync_module )
+  local user=$( get_stage_var user )
+  local master=$( get_stage_var master )
+  local servers=$( get_stage_var servers )
+  local mutualized=$( get_stage_var mutualized )
 
-	# Not Friday
-	if [ $allowfriday -eq 0 ] && [ "$( date +%u )" = "5" ] && [ "$( date +%H )" -gt 6 ] && ! is_super_user
-	then
-		echo "\033[41m\033[1m" >&2
-		cat <<EOF >&2
+  # Not Friday
+  if [ $allowfriday -eq 0 ] && [ "$( date +%u )" = "5" ] && [ "$( date +%H )" -gt 6 ] && ! is_super_user && [ "$stage" = "prod" ]
+  then
+    echo "\033[41m\033[1m" >&2
+    cat <<EOF >&2
 ┐┌┐┌┐
 ┘└┘└┘ ╲ο̷ފ
-┐┌┐┌┐ ／ 
+┐┌┐┌┐ ／
 ┘└┘└┘ノ)
-┐┌┐┌┐ 
+┐┌┐┌┐
 ┘└┘└┘
 ┐┌┐┌┐ Sorry, it's friday   凸( ͡° ͜ʖ ͡°)凸
 ┘└┘└┘
-┐┌┐┌┐ 
+┐┌┐┌┐
 │││││
-┴┴┴┴┴ 
+┴┴┴┴┴
 EOF
-		echo "\033[0m" >&2
-		exit 42
-	fi
-	
-	# use inventory script if available
-	local oldmaster="$master"
-	if [ -n "$inventory" ]
-	then
-		debug "inventory=$inventory"
-		# Replace REPOSITORY and STAGE parameters 
-		#for i in $( seq 1 ${#inventory[@]} )
-		#do
-		#	inventory[$i]="$( echo "${inventory[$i]}" | sed "s/REPOSITORY/$repo/; s/STAGE/$stage/;" )"
-		#done
-		inventory="$( echo "$inventory" | sed "s/REPOSITORY/$repo/; s/STAGE/$stage/;" )"
-		local inventory_script=$( echo "$inventory" | cut -d" " -f1 )
+    echo "\033[0m" >&2
+    exit 42
+  fi
 
-		if [ -x "$inventory_script" ]
-		then
-			debug "Call inventory script $inventory'"
-			eval $( $inventory )
-		elif [ -e "$inventory" ]
-		then
-			debug "Parse inventory hostfile $inventory"
-			parse_ansible_hostfile $inventory
-		else
-			error "Inventory $inventory_script not found."
-			exit 15
-		fi
-	fi
+  # use inventory script if available
+  local oldmaster="$master"
+  if [ -n "$inventory" ]
+  then
+    debug "inventory=$inventory"
+    # Replace REPOSITORY and STAGE parameters
+    #for i in $( seq 1 ${#inventory[@]} )
+    #do
+    #	inventory[$i]="$( echo "${inventory[$i]}" | sed "s/REPOSITORY/$repo/; s/STAGE/$stage/;" )"
+    #done
+    inventory="$( echo "$inventory" | sed "s/REPOSITORY/$repo/; s/STAGE/$stage/;" )"
+    local inventory_script=$( echo "$inventory" | cut -d" " -f1 )
 
-	# override master if it is forced in config file
-	if [ -n "$oldmaster" ]
-	then
-		master="$oldmaster"
-	fi
+    if [ -x "$inventory_script" ]
+    then
+      debug "Call inventory script $inventory'"
+      eval $( $inventory )
+    elif [ -e "$inventory" ]
+    then
+      debug "Parse inventory hostfile $inventory"
+      parse_ansible_hostfile $inventory
+    else
+      error "Inventory $inventory_script not found."
+      exit 15
+    fi
+  fi
 
-	local before=$( git rev-parse HEAD )
+  # override master if it is forced in config file
+  if [ -n "$oldmaster" ]
+  then
+    master="$oldmaster"
+  fi
 
-	# OK, then checkout repository to what we want
-	provision
-	debug "Checkout to $sync_to"
-	git checkout $( test $debug -eq 0 && echo -q ) -f $sync_to
+  local before=$( git rev-parse HEAD )
 
-	# Fix permissions
-	if [ $fix_permissions -gt 0 ]
-	then
-		debug "fix permissions in $gitdir"
-		#find $gitdir -type f -print0 | xargs -0 chmod ug+r
-		find $gitdir -type d -print0 | xargs -0 chmod u=rwx,g=rwxs
-	fi
-	
+  # OK, then checkout repository to what we want
+  provision
+  debug "Checkout to $sync_to"
+  git checkout $( test $debug -eq 0 && echo -q ) -f $sync_to
 
-	local after=$( git rev-parse HEAD )
+  # Fix permissions
+  if [ $fix_permissions -gt 0 ]
+  then
+    debug "fix permissions in $gitdir"
+    #find $gitdir -type f -print0 | xargs -0 chmod ug+r
+    find $gitdir -type d -print0 | xargs -0 chmod u=rwx,g=rwxs
+  fi
 
-	if [ "$before" != "$after" ]
-	then
-		echo
-		msg "DIFF between <$before> and <$after>"
-		git whatchanged --stat --format="%Cred author : %an --- %Cgreen date :  %ad %Creset" $before..$after
-		echo
-	fi
 
-	hook "pre_deploy" $before $after $( get_user )
-	local_hook "pre-deploy"
+  local after=$( git rev-parse HEAD )
 
-	if [ -z "$master" ]
-	then
-		error "Master not found. This repository maybe not set for deployment."
-		exit 16
-	fi
+  if [ "$before" != "$after" ]
+  then
+    echo
+    msg "DIFF between <$before> and <$after>"
+    git whatchanged --stat --format="%Cred author : %an --- %Cgreen date :  %ad %Creset" $before..$after
+    echo
+  fi
 
-	msg ">>> Delivering $repo to $stage on $sync_to ..."
-	local sync_cmd="./git-deploy.pl
+  hook "pre_deploy" $before $after $( get_user )
+  local_hook "pre-deploy"
+
+  if [ -z "$master" ]
+  then
+    error "Master not found. This repository maybe not set for deployment."
+    exit 16
+  fi
+
+  msg ">>> Delivering $repo to $stage on $sync_to ..."
+  local sync_cmd="./git-deploy.pl
 --repo=$repo
 --stage=$stage
 --source-dir=$gitdir
@@ -674,31 +674,31 @@ EOF
 --rsync-user=$user
 --master=$master"
 
-	if [ $debug -gt 0 ]
-	then
-		sync_cmd="$sync_cmd 
+  if [ $debug -gt 0 ]
+  then
+    sync_cmd="$sync_cmd
 --debug"
-	fi
+  fi
 
-	debug "mutualized=$mutualized"
-	if [ $mutualized -gt 0 ]
-	then
-		sync_cmd="$sync_cmd 
+  debug "mutualized=$mutualized"
+  if [ $mutualized -gt 0 ]
+  then
+    sync_cmd="$sync_cmd
 --mutu"
-	fi
+  fi
 
-	if [ -n "$servers" ]
-	then
-		sync_cmd="$sync_cmd 
+  if [ -n "$servers" ]
+  then
+    sync_cmd="$sync_cmd
 --servers=$servers"
-	fi
+  fi
 
-	debug "$sync_cmd"
-	if $sync_cmd
-	then
-		hook "post_deploy" $before $after $( get_user )
-		echo "\033[40m\033[1;34m" >&2
-		cat <<EOF
+  debug "$sync_cmd"
+  if $sync_cmd
+  then
+    hook "post_deploy" $before $after $( get_user )
+    echo "\033[40m\033[1;34m" >&2
+    cat <<EOF
 ╲╭━━━━╮╲╲
 ╲┃╭╮╭╮┃╲╲
 ┗┫┏━━┓┣┛╲
@@ -706,75 +706,75 @@ EOF
 ╲╰┳━━┳╯╲╲╲╲╲╲╲╲╲
 ╲╲┛╲╲┗╲╲╲╲╲╲╲╲╲
 EOF
-		echo "\033[0m" >&2
-		cleanup
-	else
-		cleanup
-		error "FAILED     凸( ͡° ͜ʖ ͡°)凸"
-		exit 3
-	fi
+    echo "\033[0m" >&2
+    cleanup
+  else
+    cleanup
+    error "FAILED     凸( ͡° ͜ʖ ͡°)凸"
+    exit 3
+  fi
 }
 
-# 
+#
 # MAIN
 #
 while [ $# -gt 0 ]
 do
-	case "$1" in
-		test)
-			exit 0
-			;;
-		autotag)
-			shift
-			exec ../bin/autotag.pl --nofetch --short $@
-			;;
-		update)
-			do_update
-			;;
-		infos)
-			do_infos
-			;;
-		sync)
-			shift
-			sync_to="$1"
-			do_sync
-			;;
-		--debug)
-			debug=1
-			debug "Call $0 $@"
-			;;
-		--init)
-			shift
-			commitish="$1"
-			;;
-		--guess)
-			shift
-			do_guess $@
-			;;
-		--remote)
-			shift
-			remote="$1"
-			debug "Set remote = $1"
-			;;
-		--*)
-			warn "Parameter unknown: $1"
-			;;
-		*)
-			if [ -z "$repo" ]
-			then
-				repo="$1"
-			elif [ -z "$stage" ]
-			then
-				stage="$1"
-			else
-				echo "You are not supposed to do that, go away !"
-				exit 42
-			fi
-			;;
-	esac
-	shift
+  case "$1" in
+    test)
+      exit 0
+      ;;
+    autotag)
+      shift
+      exec ../bin/autotag.pl --nofetch --short $@
+      ;;
+    update)
+      do_update
+      ;;
+    infos)
+      do_infos
+      ;;
+    sync)
+      shift
+      sync_to="$1"
+      do_sync
+      ;;
+    --debug)
+      debug=1
+      debug "Call $0 $@"
+      ;;
+    --init)
+      shift
+      commitish="$1"
+      ;;
+    --guess)
+      shift
+      do_guess $@
+      ;;
+    --remote)
+      shift
+      remote="$1"
+      debug "Set remote = $1"
+      ;;
+    --*)
+      warn "Parameter unknown: $1"
+      ;;
+    *)
+      if [ -z "$repo" ]
+      then
+        repo="$1"
+      elif [ -z "$stage" ]
+      then
+        stage="$1"
+      else
+        echo "You are not supposed to do that, go away !"
+        exit 42
+      fi
+      ;;
+  esac
+  shift
 done
 
-# TODO: 
+# TODO:
 # - check that sync_to is in the future
 #   else, use --force
